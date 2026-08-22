@@ -1,0 +1,161 @@
+<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>UFO DASH</title><style>html,body{  margin:0;  width:100%;  height:100%;  overflow:hidden;  background:#050816;  font-family:Arial,sans-serif;}body{  display:flex;  align-items:center;  justify-content:center;}canvas{  width:min(100vw,1100px);  aspect-ratio:1100/620;  background:#080b18;  cursor:pointer;}
+/* =====================================================   MODE===================================================== */#modeSelect{  position:fixed;  top:12px;  left:50%;  transform:translateX(-50%);  z-index:20;  display:flex;  gap:7px;  width:max-content;  max-width:96vw;  justify-content:center;  transition:.2s;}.modeButton{  padding:9px 12px;  border:2px solid #36efff;  border-radius:8px;  background:#08142b;  color:white;  font-size:12px;  font-weight:bold;  cursor:pointer;  box-shadow:    0 0 10px rgba(54,239,255,.35);  transition:.15s;}.modeButton:hover{  background:#12345a;}.modeButton.active{  background:#36efff;  color:#050816;  box-shadow:    0 0 12px #36efff,    0 0 25px rgba(54,239,255,.7);}
+/* =====================================================   SPEED DROPDOWN===================================================== */#speedSelect{  position:fixed;  top:65px;  left:50%;  transform:translateX(-50%);  z-index:20;  display:flex;  flex-direction:column;  align-items:center;}#speedMainBtn{  padding:8px 14px;  border:2px solid #36efff;  border-radius:8px;  background:#08142b;  color:white;  font-size:12px;  font-weight:bold;  cursor:pointer;  box-shadow: 0 0 10px rgba(54,239,255,.35);  transition:.15s;}#speedMainBtn:hover{  background:#12345a;}#speedMenu{  display:none;  position:absolute;  top:100%;  margin-top:6px;  background:rgba(5,12,30,.96);  border:1px solid #36efff;  border-radius:8px;  padding:6px;  box-shadow: 0 0 15px rgba(54,239,255,.3);  gap:5px;  flex-wrap:wrap;  max-width:280px;  justify-content:center;}#speedSelect.open #speedMenu{  display:flex;}.speedButton{  padding:6px 10px;  border:1px solid #36efff;  border-radius:5px;  background:#08142b;  color:white;  font-size:11px;  font-weight:bold;  cursor:pointer;  transition:.12s;}.speedButton:hover{  background:#12345a;}.speedButton.active{  background:#36efff;  color:#050816;  box-shadow: 0 0 7px #36efff;}
+/* =====================================================   MUSIC===================================================== */#musicButton{  position:fixed;  top:115px;  right:18px;  z-index:20;  padding:12px 18px;  border:2px solid #36efff;  border-radius:10px;  background:#08142b;  color:white;  font-size:16px;  font-weight:bold;  cursor:pointer;  box-shadow:    0 0 15px rgba(54,239,255,.5);}#musicStatus{  position:fixed;  top:162px;  right:18px;  z-index:20;  color:#9eefff;  font-size:13px;  text-align:right;}#fileInput{  display:none;}
+/* =====================================================   ẨN KHI CHƠI===================================================== */.gamePlaying #modeSelect,.gamePlaying #speedSelect,.gamePlaying #musicButton,.gamePlaying #musicStatus{  display:none;}
+/* =====================================================   MOBILE===================================================== */@media(max-width:750px){  #modeSelect{    top:5px;    gap:3px;    flex-wrap:wrap;  }  .modeButton{    padding:6px 7px;    font-size:9px;  }  #speedSelect{    top:85px;  }  #speedMainBtn{    padding:6px 10px;    font-size:10px;  }  #speedMenu{    max-width:220px;  }  .speedButton{    padding:4px 6px;    font-size:9px;  }  #musicButton{    top:145px;    right:8px;    padding:8px 10px;    font-size:12px;  }  #musicStatus{    top:183px;    right:8px;    font-size:10px;  }}</style></head>
+<body>
+<!-- =====================================================     MODE===================================================== --><div id="modeSelect">  <button class="modeButton active" data-mode="leftToRight">TRÁI → PHẢI</button>  <button class="modeButton" data-mode="rightToLeft">PHẢI → TRÁI</button>  <button class="modeButton" data-mode="reverseLeftToRight">NGƯỢC TRÁI → PHẢI</button>  <button class="modeButton" data-mode="reverseRightToLeft">NGƯỢC PHẢI → TRÁI</button></div>
+<!-- =====================================================     SPEED DROPDOWN===================================================== --><div id="speedSelect">  <button id="speedMainBtn">⚡ TỐC ĐỘ: 1x ▾</button>  <div id="speedMenu">    <button class="speedButton" data-speed="0.25">0.25x</button>    <button class="speedButton" data-speed="0.5">0.5x</button>    <button class="speedButton" data-speed="0.75">0.75x</button>    <button class="speedButton active" data-speed="1">1x</button>    <button class="speedButton" data-speed="1.25">1.25x</button>    <button class="speedButton" data-speed="1.5">1.5x</button>    <button class="speedButton" data-speed="1.75">1.75x</button>    <button class="speedButton" data-speed="2">2x</button>  </div></div>
+<!-- =====================================================     GAME===================================================== --><canvas id="game" width="1100" height="620"></canvas>
+<!-- =====================================================     MUSIC===================================================== --><button id="musicButton">🎵 BẬT NHẠC</button><div id="musicStatus">Chưa chọn nhạc</div><input id="fileInput" type="file" accept="audio/*"><audio id="bgMusic" preload="auto"></audio>
+<script>/* =====================================================   CANVAS===================================================== */const canvas = document.getElementById("game");const ctx = canvas.getContext("2d");const W = 1100; const H = 620; const FLOOR = 530; const CEILING = 0;
+/* =====================================================   MUSIC===================================================== */const musicButton = document.getElementById("musicButton");const musicStatus = document.getElementById("musicStatus");const fileInput = document.getElementById("fileInput");const bgMusic = document.getElementById("bgMusic");
+/* =====================================================   GAME STATE===================================================== */let state = "start";let score = 0;let best = Number(localStorage.getItem("ufoBest") || 0);let camera = 0;
+/* Tốc độ gốc.*/const BASE_SPEED = 6;let speedMultiplier = 1;
+/* Vật lý UFO */const GRAVITY = 0.5; const JUMP_FORCE = 10;
+/* =====================================================   MODE & SPEED===================================================== */let gameMode = "leftToRight";const modeButtons = document.querySelectorAll(".modeButton");const speedSelect = document.getElementById("speedSelect");const speedMainBtn = document.getElementById("speedMainBtn");const speedButtons = document.querySelectorAll(".speedButton");
+/* =====================================================   UFO===================================================== */const ufo = {  x: 180,  y: 300,  vy: 0,  r: 18,  rot: 0};
+/* =====================================================   OBJECTS===================================================== */let obstacles = [];let particles = [];
+/* =====================================================   UI===================================================== */function setGameUI(){  if(state === "play"){    document.body.classList.add("gamePlaying");  }else{    document.body.classList.remove("gamePlaying");  }}
+/* =====================================================   MODE CHECK===================================================== */function isRightToLeft(){  return (    gameMode === "rightToLeft" ||    gameMode === "reverseRightToLeft"  );}
+function isReverse(){  return (    gameMode === "reverseLeftToRight" ||    gameMode === "reverseRightToLeft"  );}
+/* =====================================================   SETUP UFO===================================================== */function setupUfoForMode(){  if(!isRightToLeft()){    ufo.x = 180;  }else{    ufo.x = W - 180;  }  ufo.y = 300;  ufo.vy = 0;
+  if(isReverse()){    ufo.rot = Math.PI;  }else{    ufo.rot = 0;  }}
+/* =====================================================   MODE BUTTON===================================================== */modeButtons.forEach(button=>{  button.addEventListener("click", e=>{    e.preventDefault(); e.stopPropagation();    if(state === "play") return;    gameMode = button.dataset.mode;    modeButtons.forEach(b=>{ b.classList.remove("active"); });    button.classList.add("active");    setupUfoForMode();  });});
+/* =====================================================   SPEED BUTTON & DROPDOWN===================================================== */speedMainBtn.addEventListener("click", e=>{  e.preventDefault(); e.stopPropagation();  if(state === "play") return;  speedSelect.classList.toggle("open");});
+speedButtons.forEach(button=>{  button.addEventListener("click", e=>{    e.preventDefault(); e.stopPropagation();    if(state === "play") return;    speedMultiplier = Number(button.dataset.speed);    speedButtons.forEach(b=>{ b.classList.remove("active"); });    button.classList.add("active");    speedMainBtn.textContent = `⚡ TỐC ĐỘ: ${button.dataset.speed}x ▾`;    speedSelect.classList.remove("open");  });});
+// Đóng menu tốc độ khi click ra ngoài window.addEventListener("click", e=>{  if(!speedSelect.contains(e.target)){    speedSelect.classList.remove("open");  }});
+/* =====================================================   MUSIC SELECT===================================================== */let musicURL = null;let musicSelected = false;
+musicButton.onclick = ()=>{ fileInput.click(); };
+fileInput.onchange = ()=>{  const file = fileInput.files[0];  if(!file) return;
+  if(!file.type.startsWith("audio/")){    musicStatus.textContent = "❌ File không phải nhạc";    return;  }
+
+  if(musicURL){ URL.revokeObjectURL(musicURL); }  musicURL = URL.createObjectURL(file);  bgMusic.src = musicURL;  bgMusic.volume = .7;  musicSelected = true;  musicStatus.textContent = "🎵 " + file.name;  musicButton.textContent = "🎵 ĐÃ CHỌN NHẠC";};
+/* =====================================================   PLAY MUSIC===================================================== */function playMusic(){  if(!musicSelected){    musicStatus.textContent = "⚠️ Hãy chọn file nhạc trước!";    return false;  }  bgMusic.pause();  bgMusic.currentTime = 0;  bgMusic.play().then(()=>{    setGameUI();  }).catch(()=>{    musicStatus.textContent = "⚠️ Hãy bấm lại để phát nhạc";  });  return true;}
+function stopMusic(){ bgMusic.pause(); }
+
+bgMusic.addEventListener("ended", ()=>{  if(state !== "play") return;  state = "win";  best = Math.max(best, score);  localStorage.setItem("ufoBest", best);  musicButton.textContent = "🎵 BẬT NHẠC";  musicStatus.textContent = "🏆 Bài nhạc đã hết — BẠN THẮNG!";  setGameUI();});
+/* =====================================================   RESET===================================================== */function reset(){  state = "play";  score = 0;  camera = 0;  setupUfoForMode();  obstacles = [];
+
+  for(let i=0; i<300; i++){    const x = 650 + i * 300 + Math.random()*150;    const y = 100 + Math.random()*300;    obstacles.push({      x: x,      y: y,      w: 55,      h: 55,      type: Math.random() < .5 ? "spike" : "block"    });  }  particles = [];  setGameUI();}
+/* =====================================================   FLAP===================================================== */function flap(){  if(state === "start" || state === "dead" || state === "win"){    if(!musicSelected){      musicStatus.textContent = "⚠️ Hãy chọn nhạc trước!";      return;    }    reset();    playMusic();    return;  }
+
+  if(isReverse()){    ufo.vy = JUMP_FORCE;  }else{    ufo.vy = -JUMP_FORCE;  }
+
+  const effectDirection = isRightToLeft() ? 1 : -1;  const verticalDirection = isReverse() ? -1 : 1;
+
+  for(let i=0; i<7; i++){    particles.push({      x: ufo.x + effectDirection * 15,      y: ufo.y + verticalDirection * (5 + Math.random()*10),      vx: effectDirection * (2 + Math.random()*3),      vy: verticalDirection * (1 + Math.random()*3),      life: 30 + Math.random()*10,      reversePhysics: isReverse()    });  }}
+/* =====================================================   INPUT===================================================== */window.addEventListener("keydown", e=>{  if(e.code === "Space" || e.code === "ArrowUp"){    e.preventDefault();    flap();  }});
+
+canvas.addEventListener("mousedown", e=>{ e.preventDefault(); flap(); });canvas.addEventListener("touchstart", e=>{ e.preventDefault(); flap(); }, { passive:false });
+/* =====================================================   COLLISION===================================================== */function circleRect(cx, cy, r, rx, ry, rw, rh){  const nx = Math.max(rx, Math.min(cx, rx + rw));  const ny = Math.max(ry, Math.min(cy, ry + rh));  const dx = cx - nx;  const dy = cy - ny;  return (dx*dx + dy*dy < r*r);}
+
+function crash(){  if(state !== "play") return;  state = "dead";  stopMusic();  best = Math.max(best, score);  localStorage.setItem("ufoBest", best);  setGameUI();
+
+  const verticalDirection = isReverse() ? -1 : 1;  const horizontalDirection = isRightToLeft() ? -1 : 1;
+
+  for(let i=0; i<30; i++){    const angle = Math.random() * Math.PI * 2;    const force = 3 + Math.random() * 7;    particles.push({      x: ufo.x,      y: ufo.y,      vx: Math.cos(angle) * force * horizontalDirection,      vy: Math.sin(angle) * force * verticalDirection,      life: 50 + Math.random()*30,      reversePhysics: isReverse()    });  }}
+/* =====================================================   UPDATE===================================================== */function update(){  if(state !== "play"){    updateParticles();    return;  }
+
+  const timeScale = speedMultiplier;  const gameSpeed = BASE_SPEED * timeScale;  camera += gameSpeed;  score = Math.floor(camera / 100);
+
+  if(isReverse()){    ufo.vy -= GRAVITY * timeScale;  }else{    ufo.vy += GRAVITY * timeScale;  }
+
+  ufo.y += ufo.vy * timeScale;
+
+  /* ROTATION */  const tilt = Math.max(-.6, Math.min(.7, ufo.vy * .05));
+
+  if(isReverse()){    if(isRightToLeft()){      ufo.rot = Math.PI - tilt;    }else{      ufo.rot = Math.PI + tilt;    }  }else{    if(isRightToLeft()){      ufo.rot = -tilt;    }else{      ufo.rot = tilt;    }  }
+
+  if(ufo.y - ufo.r < CEILING || ufo.y + ufo.r > FLOOR){    crash();  }
+
+  for(const o of obstacles){    let sx;    if(!isRightToLeft()){      sx = ufo.x + (o.x - camera);    }else{      sx = ufo.x - (o.x - camera);    }
+
+    if(sx < -100 || sx > W + 100) continue;
+
+    if(o.type === "block"){      if(circleRect(ufo.x, ufo.y, ufo.r, sx, o.y, o.w, o.h)){        crash();      }    }
+
+    if(o.type === "spike"){      if(circleRect(ufo.x, ufo.y, ufo.r, sx, o.y - o.h, o.w, o.h)){        crash();      }    }  }
+
+  updateParticles();}
+
+function updateParticles(){  for(const p of particles){    p.x += p.vx;    p.y += p.vy;    if(p.reversePhysics){      p.vy -= .12;    }else{      p.vy += .12;    }    p.life--;  }  particles = particles.filter(p => p.life > 0);}
+
+function text(txt, x, y, size, color="#fff"){  ctx.save();  ctx.font = `bold ${size}px Arial`;  ctx.textAlign = "center";  ctx.fillStyle = color;  ctx.shadowColor = color;  ctx.shadowBlur = 15;  ctx.fillText(txt, x, y);  ctx.restore();}
+
+function drawBackground(){  const gradient = ctx.createLinearGradient(0, 0, 0, H);  gradient.addColorStop(0, "#111d4a");  gradient.addColorStop(1, "#050816");  ctx.fillStyle = gradient;  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = "rgba(40,210,255,.12)";  ctx.lineWidth = 1;
+
+  for(let x=-(camera%60); x<W; x+=60){    ctx.beginPath();    ctx.moveTo(x, 40);    ctx.lineTo(x, H);    ctx.stroke();  }
+
+  for(let y=70; y<FLOOR; y+=45){    ctx.beginPath();    ctx.moveTo(0, y);    ctx.lineTo(W, y);    ctx.stroke();  }
+
+  const triangleWidth = 110;  const bottomPeak = 390;  const topPeak = 140;
+
+  for(let i=-2; i<15; i++){    const x = i * triangleWidth - (camera * .2 % triangleWidth);
+
+    ctx.fillStyle = "#101735";    ctx.beginPath();    ctx.moveTo(x, FLOOR);    ctx.lineTo(x + triangleWidth/2, bottomPeak);    ctx.lineTo(x + triangleWidth, FLOOR);    ctx.closePath();    ctx.fill();
+
+    ctx.save();    ctx.lineWidth = 3;    ctx.strokeStyle = "#e45aff";    ctx.shadowColor = "#b000ff";    ctx.shadowBlur = 12;    ctx.beginPath();    ctx.moveTo(x, FLOOR);    ctx.lineTo(x + triangleWidth/2, bottomPeak);    ctx.lineTo(x + triangleWidth, FLOOR);    ctx.closePath();    ctx.stroke();    ctx.restore();
+
+    ctx.fillStyle = "#101735";    ctx.beginPath();    ctx.moveTo(x, 0);    ctx.lineTo(x + triangleWidth/2, topPeak);    ctx.lineTo(x + triangleWidth, 0);    ctx.closePath();    ctx.fill();
+
+    ctx.save();    ctx.lineWidth = 3;    ctx.strokeStyle = "#e45aff";    ctx.shadowColor = "#b000ff";    ctx.shadowBlur = 12;    ctx.beginPath();    ctx.moveTo(x, 0);    ctx.lineTo(x + triangleWidth/2, topPeak);    ctx.lineTo(x + triangleWidth, 0);    ctx.closePath();    ctx.stroke();    ctx.restore();  }
+
+  ctx.shadowBlur = 0;  ctx.fillStyle = "#0c1428";  ctx.fillRect(0, FLOOR, W, H-FLOOR);  ctx.fillStyle = "#36efff";  ctx.fillRect(0, FLOOR, W, 5);}
+
+function drawObstacles(){  for(const o of obstacles){    let sx;    if(!isRightToLeft()){      sx = ufo.x + (o.x - camera);    }else{      sx = ufo.x - (o.x - camera);    }
+
+    if(sx < -100 || sx > W + 100) continue;
+
+    ctx.shadowColor = "#ff28e7";    ctx.shadowBlur = 18;    ctx.fillStyle = "#ff35dc";
+
+    if(o.type === "block"){      ctx.fillRect(sx, o.y, o.w, o.h);      ctx.fillStyle = "#ff9af2";      ctx.fillRect(sx+8, o.y+8, o.w-16, 7);      ctx.fillStyle = "#a82391";      ctx.fillRect(sx+8, o.y+25, o.w-16, o.h-33);    }
+
+    if(o.type === "spike"){      ctx.beginPath();      ctx.moveTo(sx, o.y);      ctx.lineTo(sx + o.w/2, o.y-o.h);      ctx.lineTo(sx + o.w, o.y);      ctx.closePath();      ctx.fill();    }    ctx.shadowBlur = 0;  }}
+
+/* =====================================================   UFO===================================================== */function drawUfo(){  ctx.save();  ctx.translate(ufo.x, ufo.y);  ctx.rotate(ufo.rot);
+
+  if(isRightToLeft()){    ctx.scale(-1, 1);  }
+
+  ctx.shadowColor = "#ffe13b";  ctx.shadowBlur = 20;
+
+  /* Vòm */  ctx.fillStyle = "#eaffff";  ctx.beginPath();  ctx.ellipse(0, -5, 12, 8, 0, Math.PI, 0);  ctx.fill();
+
+  /* Thân */  ctx.fillStyle = "#ffd735";  ctx.beginPath();  ctx.ellipse(0, 4, 24, 9, 0, 0, Math.PI*2);  ctx.fill();
+
+  /* Đèn */  ctx.fillStyle = "#ffef70";  for(let i=-1; i<=1; i++){    ctx.beginPath();    ctx.arc(i*8, 7, 3, 0, Math.PI*2);    ctx.fill();  }
+
+  ctx.restore();}
+
+function drawParticles(){  for(const p of particles){    ctx.globalAlpha = Math.max(0, p.life / 60);    ctx.fillStyle = "#ffe33d";    ctx.fillRect(p.x, p.y, 5, 5);  }  ctx.globalAlpha = 1;}
+
+function drawUI(){  ctx.fillStyle = "rgba(0,0,0,.35)";  ctx.fillRect(20, 20, 310, 90);
+
+  ctx.fillStyle = "#fff";  ctx.font = "bold 22px Arial";  ctx.fillText("UFO DASH", 35, 48);
+
+  ctx.font = "16px Arial";  ctx.fillText("Điểm: " + score + "   Kỷ lục: " + best, 35, 72);
+
+  let modeName = "";  if(gameMode === "leftToRight") modeName = "TRÁI → PHẢI";  if(gameMode === "rightToLeft") modeName = "PHẢI → TRÁI";  if(gameMode === "reverseLeftToRight") modeName = "NGƯỢC TRÁI → PHẢI";  if(gameMode === "reverseRightToLeft") modeName = "NGƯỢC PHẢI → TRÁI";
+
+  ctx.font = "bold 14px Arial";  ctx.fillStyle = "#36efff";  ctx.fillText("Chế độ: " + modeName, 35, 98);
+
+  ctx.fillStyle = "rgba(255,255,255,.2)";  ctx.fillRect(330, 30, 520, 10);
+
+  let progress = 0;  if(musicSelected && bgMusic.duration && isFinite(bgMusic.duration)){    progress = bgMusic.currentTime / bgMusic.duration;  }
+
+  ctx.fillStyle = "#38efff";  ctx.fillRect(330, 30, 520 * Math.min(progress, 1), 10);}
+
+function overlay(){  if(state === "start"){    ctx.fillStyle = "rgba(2,4,15,.7)";    ctx.fillRect(0, 0, W, H);    text("UFO DASH", W/2, 190, 70, "#36efff");    text("Chọn chế độ ở phía trên", W/2, 250, 22, "#9eefff");    text("Chọn tốc độ ở nút TỐC ĐỘ phía trên", W/2, 285, 19, "#9eefff");    text("Bấm 🎵 BẬT NHẠC để chọn bài", W/2, 320, 20, "#9eefff");    text("SPACE / CLICK ĐỂ BẮT ĐẦU", W/2, 365, 24, "#ffffff");    text("Sống sót cho đến khi nhạc hết = THẮNG", W/2, 410, 18, "#ff7bea");  }
+
+  if(state === "dead"){    ctx.fillStyle = "rgba(2,4,15,.72)";    ctx.fillRect(0, 0, W, H);    text("CRASH!", W/2, 245, 65, "#ff36e7");    text("Điểm: " + score, W/2, 295, 24);    text("CLICK HOẶC SPACE ĐỂ CHƠI LẠI", W/2, 340, 21, "#36efff");    text("🎵 Nhạc sẽ trở lại 0:00", W/2, 375, 17, "#ffe13b");  }
+
+  if(state === "win"){    ctx.fillStyle = "rgba(2,4,15,.72)";    ctx.fillRect(0, 0, W, H);    text("LEVEL COMPLETE!", W/2, 230, 52, "#36efff");    text("🎵 BÀI NHẠC ĐÃ PHÁT HẾT!", W/2, 280, 25, "#ffe13b");    text("Điểm: " + score, W/2, 320, 23);    text("CLICK HOẶC SPACE ĐỂ CHƠI LẠI", W/2, 365, 21, "#ff36e7");  }}
+
+function draw(){  ctx.clearRect(0, 0, W, H);  drawBackground();  drawObstacles();  drawParticles();  drawUfo();  drawUI();  overlay();}
+
+function loop(){  update();  draw();  requestAnimationFrame(loop);}
+
+reset();state = "start";setGameUI();loop();</script></body></html>
